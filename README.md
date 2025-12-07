@@ -45,11 +45,10 @@ Inspired by Tesla’s autonomous vehicle vision, this project merges computer vi
 ---
 
 ## 4. Hardware Requirements
-- Arduino Nano 33 IoT  
-- Pololu 3pi or similar platform  
-- 5 × reflective opto sensors  
-- Laptop with Bluetooth support  
-- Compatible power supply  
+- Arduino Nano 33 IoT    
+- 5 × reflective opto sensors    
+- Compatible power supply for the power on the Arduino
+- Laptop with Bluetooth support
 
 ---
 
@@ -65,34 +64,7 @@ Inspired by Tesla’s autonomous vehicle vision, this project merges computer vi
 
 ---
 
-## 6. Functional Summary
-### **Must-Have Features**
-- Face detection & verification  
-- BLE connection and safety disconnection handling  
-- Autonomous mode:
-  - Line tracking  
-  - Sensor calibration  
-  - T-junction handling  
-- Manual mode:
-  - Forward, backward, left, right, stop  
-- GUI:
-  - Status indicators  
-  - Real-time feedback  
-
-### **Should-Have Features**
-- Confidence score  
-- Lighting-tolerant recognition  
-- Connection recovery  
-
-### **Future Enhancements**
-- Obstacle detection  
-- Better lighting robustness  
-- Multi-robot support  
-- Battery monitoring  
-
----
-
-## 7. Testing & Results
+## 6. Testing & Results
 ### **Face Verification Accuracy**
 - 85–90% in good lighting  
 - 60% in poor lighting  
@@ -109,7 +81,7 @@ Inspired by Tesla’s autonomous vehicle vision, this project merges computer vi
 
 ---
 
-## 8. Challenges & Solutions
+## 7. Challenges & Solutions
 - **Lighting problems →** solved using heavy data augmentation  
 - **MATLAB–Arduino Bluetooth mismatch →** solved through extended documentation study  
 - **GUI inexperience →** solved with tutorials and documentation  
@@ -117,20 +89,19 @@ Inspired by Tesla’s autonomous vehicle vision, this project merges computer vi
 
 ---
 
-## 9. Ethical Considerations
+## 8. Ethical Considerations
 - Face data stored locally only  
 - System can be fooled by high-quality images  
-- Not intended as a production-grade security system  
+- Not intended as a security system  
 - Access is revoked after logout (photo deleted)  
 
 ---
 
-## 10. Conclusion
+## 9. Conclusion
 Neville Smart Car successfully combines:
-
 - Biometric authentication  
 - Wireless BLE control  
-- Autonomous navigation  
+- Autonomous navigation and Manual 
 
 into a single, functional smart robotic system.  
 The project demonstrates practical engineering, system integration, and problem-solving skills in pervasive computing.
