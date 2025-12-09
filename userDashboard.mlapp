@@ -1,0 +1,344 @@
+classdef userDashboard < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        UIFigure                  matlab.ui.Figure
+        DirectionLabel            matlab.ui.control.Label
+        StopButton                matlab.ui.control.Button
+        DriveButton               matlab.ui.control.Button
+        StatusLabel               matlab.ui.control.Label
+        BeforeyoustartdrivingyouneedfirsttoestablishaBluetoothconnectionwithNevilleLabel  matlab.ui.control.Label
+        DisconnectButton          matlab.ui.control.Button
+        ConnectButton             matlab.ui.control.Button
+        NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel  matlab.ui.control.Label
+        WelcometoNevilleCarLabel  matlab.ui.control.Label
+    end
+
+    
+    properties (Access = private)
+        bleConnection               % BLE connection object
+        commandCharacteristic       % BLE characteristic for commands
+        isConnected = false         % Connection status flag
+    end
+
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Button pushed function: ConnectButton
+        function ConnectButtonPushed(app, event)
+            % Clear any existing connections first
+            try
+                if ~isempty(app.bleConnection)
+                    clear app.bleConnection;
+                end
+                if ~isempty(app.commandCharacteristic)
+                    clear app.commandCharacteristic;
+                end
+            catch
+            end
+               try
+                    % Update status
+                    app.StatusLabel.Text = 'Searching for Arduino...';
+                    app.StatusLabel.FontColor = [1 0.5 0];  % Orange
+                    drawnow;
+
+                   
+                    % Scan for Bluetooth devices
+                    devices = blelist;
+                    
+                    if isempty(devices)
+                        app.StatusLabel.Text = 'No devices found!';
+                        app.StatusLabel.FontColor = [1 0 0];  % Red
+                        errordlg('No Bluetooth devices found. Check if Bluetooth is enabled.', 'Connection Error');
+                        return;
+                    end
+                    
+                    % Look for "MOHAMED_ARDUINO"
+                    deviceFound = false;
+                    arduinoAddress = "";
+                    
+                    for i = 1:height(devices)
+                        if strcmp(devices.Name(i), "MOHAMED_ARDUINO")
+                            % Compare all the Arduino names to "MOHAMED_ARDUINO"
+                            arduinoAddress = devices.Address(i);
+                            deviceFound = true;
+                            break;
+                        end
+                    end
+                    
+                    if ~deviceFound
+                        app.StatusLabel.Text = 'Arduino not found!';
+                        app.StatusLabel.FontColor = [1 0 0];  % Red
+                        errordlg('Arduino "MOHAMED_ARDUINO" not found. Make sure it is powered on.', 'Connection Error');
+                        return;
+                    end
+                    
+                    % Update status
+                    app.StatusLabel.Text = 'Connecting...';
+                    app.StatusLabel.FontColor = [1 0.5 0];  % Orange
+                    drawnow;
+                    
+                    % Connect to Arduino
+                    app.bleConnection = ble(arduinoAddress);
+                    
+                    % Get command characteristic of a Bluetooth Low Energy peripheral device in Bluetooth Toolbox.
+                    app.commandCharacteristic = characteristic(app.bleConnection, ...
+                        "19B10000-E8F2-537E-4F6C-D104768A1214", ...  % Service UUID
+                        "19B10001-E8F2-537E-4F6C-D104768A1214");     % Characteristic UUID
+                    
+                    % Set connection flag
+                    app.isConnected = true;
+                    
+                    % Update GUI
+                    app.StatusLabel.Text = 'Connected to Arduino!';
+                    app.StatusLabel.FontColor = [0 0.7 0];  % Green
+                    app.ConnectButton.Enable = 'off';
+
+                    % play the sound effect file
+                    try
+                        [y, Fs] = audioread('Engin_startup_sound.mp3');  
+                        sound(y, Fs);
+                    catch Error
+                        warning('Could not play sound: %s', soundErr.message);
+                    end
+
+                    app.DisconnectButton.Visible = 'on';
+                    app.DisconnectButton.Enable = 'on';
+
+                    app.DriveButton.Visible = 'on';
+                    app.DriveButton.Enable = 'on';
+
+                    app.StopButton.Visible = 'on';
+                    app.StopButton.Enable = 'on';
+
+                    app.DirectionLabel.Visible = 'on';
+                    app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel.Visible = "on";
+
+                    % Send Mode command
+                    write(app.commandCharacteristic, "AUTOMATIC");
+                    fprintf('Connected to Arduino: %s\n', arduinoAddress);
+                    fprintf('Command "TEST" sent\n');
+                    
+                catch ME
+                    % Handle errors
+                    app.StatusLabel.Text = 'Connection failed!';
+                    app.StatusLabel.FontColor = [1 0 0];  % Red
+                    errordlg(['Connection error: ' ME.message], 'Connection Error');
+                    fprintf('Connection error: %s\n', ME.message);
+                    app.isConnected = false;
+                end
+            
+        end
+
+        % Button pushed function: DisconnectButton
+        function DisconnectButtonPushed(app, event)
+            if app.isConnected
+                try
+                    % Send STOP command before disconnecting for robot safety
+                    try
+                        write(app.commandCharacteristic, "STOP");
+                    catch
+                    end
+                    
+                    % Clear Bluetooth connection
+                    if ~isempty(app.bleConnection)
+                        clear app.bleConnection;
+                    end
+                    if ~isempty(app.commandCharacteristic)
+                        clear app.commandCharacteristic;
+                    end
+                    
+                    % Clear from base workspace
+                    evalin('base', 'clear'); % TODO: Test this
+                    
+                    app.isConnected = false;
+                    
+                    % Update GUI
+                    app.StatusLabel.Text = 'Disconnected';
+                    app.StatusLabel.FontColor = [1 0 0];  % Red
+                    app.ConnectButton.Enable = 'on';
+                    app.DisconnectButton.Enable = 'off';
+                    
+                    % Disable driving buttons
+                    app.DriveButton.Enable = 'off'; 
+                    app.DriveButton.Visible = 'off';
+                    app.StopButton.Enable = 'off';
+                    app.StopButton.Visible = 'off';
+                    
+                    % Hide direction label
+                    app.DirectionLabel.Visible = 'off';
+        
+                    fprintf('Disconnected from Arduino\n');
+                    
+                catch ME
+                    fprintf('Disconnect error: %s\n', ME.message);
+                end
+            end
+        end
+
+        % Button pushed function: DriveButton
+        function DriveButtonPushed(app, event)
+            % Check first if the Bluetooth is still connected
+             if ~app.isConnected 
+                    errordlg('Not connected to Arduino. Please connect first.', 'Error');
+                return;
+            end
+            cmd = "DRIVE";
+            fprintf('\n   Sending: %s\n', cmd);
+            
+            try
+                % Send DRIVE command
+                write(app.commandCharacteristic, cmd);
+                fprintf('      Sent successfully\n');
+                app.DirectionLabel.Text = 'Nevilla is following the line';
+                
+                
+            catch ME
+                fprintf('      Failed: %s\n', ME.message);
+                errordlg(['Failed to send command: ' ME.message], 'Communication Error');
+            end
+        end
+
+        % Button pushed function: StopButton
+        function StopButtonPushed(app, event)
+             % Check first if the Bluetooth is still connected
+            if ~app.isConnected
+                    errordlg('Not connected to Arduino. Please connect first.', 'Error');
+                return;
+            end
+            cmd = "STOP";
+            fprintf('\n   Sending: %s\n', cmd);
+            app.DirectionLabel.Text = 'Nevilla stopped';
+            
+            try
+                % Send STOP command
+                write(app.commandCharacteristic, cmd);
+                fprintf('      Sent successfully\n');
+                
+            catch ME
+                fprintf('      Failed: %s\n', ME.message);
+                errordlg(['Failed to send STOP: ' ME.message], 'Communication Error');
+            end
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Create UIFigure and hide until all components are created
+            app.UIFigure = uifigure('Visible', 'off');
+            app.UIFigure.Position = [800 250 640 480];
+            app.UIFigure.Name = 'MATLAB App';
+
+            % Create WelcometoNevilleCarLabel
+            app.WelcometoNevilleCarLabel = uilabel(app.UIFigure);
+            app.WelcometoNevilleCarLabel.FontName = 'Georgia';
+            app.WelcometoNevilleCarLabel.FontSize = 36;
+            app.WelcometoNevilleCarLabel.Position = [128 413 385 48];
+            app.WelcometoNevilleCarLabel.Text = 'Welcome to Neville Car';
+
+            % Create NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel
+            app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel = uilabel(app.UIFigure);
+            app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel.HorizontalAlignment = 'center';
+            app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel.WordWrap = 'on';
+            app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel.FontName = 'Calibri';
+            app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel.FontSize = 20;
+            app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel.Visible = 'off';
+            app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel.Position = [104 173 450 51];
+            app.NevillewillfollowthelineautomaticallyyoucannowDRIVEorSTOPatanypointonthelineLabel.Text = 'Neville will follow the line automatically, you can now DRIVE or STOP at any point on the line';
+
+            % Create ConnectButton
+            app.ConnectButton = uibutton(app.UIFigure, 'push');
+            app.ConnectButton.ButtonPushedFcn = createCallbackFcn(app, @ConnectButtonPushed, true);
+            app.ConnectButton.FontName = 'Segoe UI Semibold';
+            app.ConnectButton.FontSize = 18;
+            app.ConnectButton.Position = [209 294 103 46];
+            app.ConnectButton.Text = 'Connect';
+
+            % Create DisconnectButton
+            app.DisconnectButton = uibutton(app.UIFigure, 'push');
+            app.DisconnectButton.ButtonPushedFcn = createCallbackFcn(app, @DisconnectButtonPushed, true);
+            app.DisconnectButton.FontName = 'Segoe UI Semibold';
+            app.DisconnectButton.FontSize = 18;
+            app.DisconnectButton.Position = [346 294 105 46];
+            app.DisconnectButton.Text = 'Disconnect';
+
+            % Create BeforeyoustartdrivingyouneedfirsttoestablishaBluetoothconnectionwithNevilleLabel
+            app.BeforeyoustartdrivingyouneedfirsttoestablishaBluetoothconnectionwithNevilleLabel = uilabel(app.UIFigure);
+            app.BeforeyoustartdrivingyouneedfirsttoestablishaBluetoothconnectionwithNevilleLabel.HorizontalAlignment = 'center';
+            app.BeforeyoustartdrivingyouneedfirsttoestablishaBluetoothconnectionwithNevilleLabel.FontName = 'Calibri';
+            app.BeforeyoustartdrivingyouneedfirsttoestablishaBluetoothconnectionwithNevilleLabel.FontSize = 20;
+            app.BeforeyoustartdrivingyouneedfirsttoestablishaBluetoothconnectionwithNevilleLabel.Position = [94 350 454 49];
+            app.BeforeyoustartdrivingyouneedfirsttoestablishaBluetoothconnectionwithNevilleLabel.Text = {'Before you start driving, you need first to establish '; 'a Bluetooth connection with Neville '};
+
+            % Create StatusLabel
+            app.StatusLabel = uilabel(app.UIFigure);
+            app.StatusLabel.HorizontalAlignment = 'center';
+            app.StatusLabel.FontName = 'Arial';
+            app.StatusLabel.FontSize = 18;
+            app.StatusLabel.FontAngle = 'italic';
+            app.StatusLabel.Position = [177 254 303 26];
+            app.StatusLabel.Text = 'Status';
+
+            % Create DriveButton
+            app.DriveButton = uibutton(app.UIFigure, 'push');
+            app.DriveButton.ButtonPushedFcn = createCallbackFcn(app, @DriveButtonPushed, true);
+            app.DriveButton.FontName = 'Segoe UI Semibold';
+            app.DriveButton.FontSize = 18;
+            app.DriveButton.Visible = 'off';
+            app.DriveButton.Position = [209 115 103 48];
+            app.DriveButton.Text = 'Drive ';
+
+            % Create StopButton
+            app.StopButton = uibutton(app.UIFigure, 'push');
+            app.StopButton.ButtonPushedFcn = createCallbackFcn(app, @StopButtonPushed, true);
+            app.StopButton.FontName = 'Segoe UI Semibold';
+            app.StopButton.FontSize = 18;
+            app.StopButton.Visible = 'off';
+            app.StopButton.Position = [346 117 105 46];
+            app.StopButton.Text = 'Stop';
+
+            % Create DirectionLabel
+            app.DirectionLabel = uilabel(app.UIFigure);
+            app.DirectionLabel.HorizontalAlignment = 'center';
+            app.DirectionLabel.FontName = 'Arial';
+            app.DirectionLabel.FontSize = 18;
+            app.DirectionLabel.FontAngle = 'italic';
+            app.DirectionLabel.Visible = 'off';
+            app.DirectionLabel.Position = [128 54 385 23];
+            app.DirectionLabel.Text = 'Direction';
+
+            % Show the figure after all components are created
+            app.UIFigure.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = userDashboard
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.UIFigure)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.UIFigure)
+        end
+    end
+end
