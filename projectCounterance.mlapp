@@ -1,0 +1,291 @@
+classdef projectCounterance < matlab.apps.AppBase
+
+    % Properties that correspond to app components
+    properties (Access = public)
+        Project                      matlab.ui.Figure
+        MakesureyouchooseaCONTROLMETHODdownbelowbeforeyouloginLabel  matlab.ui.control.Label
+        SelectControlMethodDropDown  matlab.ui.control.DropDown
+        SelectControlMethodLabel     matlab.ui.control.Label
+        PhotoImage                   matlab.ui.control.Image
+        ResultPanel                  matlab.ui.control.Label
+        StatusLabel                  matlab.ui.control.Label
+        VerificationResultLabel1     matlab.ui.control.Label
+        QuitButton                   matlab.ui.control.Button
+        LogoutButton                 matlab.ui.control.Button
+        VerifyFaceButton             matlab.ui.control.Button
+        ProbabilityGauge             matlab.ui.control.LinearGauge
+        ConfidenceLevelGaugeLabel    matlab.ui.control.Label
+        TostartDrivingNevilleyouneedfirsttoLOGINusingyourfacebiometricLabel  matlab.ui.control.Label
+        WelcometoNevilleFaceIDLabel  matlab.ui.control.Label
+    end
+
+    
+    properties (Access = private)
+        CapturedImage % To store the captured photo
+        DashboardApp  % To control the second window tap
+    end
+
+    % Callbacks that handle component events
+    methods (Access = private)
+
+        % Button pushed function: QuitButton
+        function quit(app, event)
+        % Close the dashboard if it's open
+        if ~isempty(app.DashboardApp) && isvalid(app.DashboardApp.UIFigure)
+            delete(app.DashboardApp.UIFigure);  % Close the dashboard window
+        end
+    
+        % Close the main app
+        delete(app.DashboardApp);
+        delete(app.Project)
+            
+        end
+
+        % Button pushed function: VerifyFaceButton
+        function VerifyFaceButtonPushed(app, event)
+            % Disable button during processing
+            app.VerifyFaceButton.Enable = 'off';
+            app.StatusLabel.Text = 'Processing ... Please wait';
+            app.StatusLabel.FontColor = [1 1 1]; % white
+            
+            % Clear previous results
+            app.PhotoImage.ImageSource = '';  % Clear the image
+            app.ResultPanel.Text = ''; % Clear the result panel text
+            app.ResultPanel.FontColor = [1 1 1]; % white
+            drawnow;
+            
+            try
+                % Run face verification
+                [userName, probability, accessGranted, status, capturedImg] = verifyFace();
+                
+                % Update probability gauge component
+                app.ProbabilityGauge.Value = probability * 100;
+        
+                % Display the captured photo in Image component
+                if ~isempty(capturedImg)
+                    % Convert the image to display in Image component
+                    app.PhotoImage.ImageSource = capturedImg;
+                end
+                
+                if strcmp(status, 'success')
+                    if accessGranted
+                        % Access granted - SUCCESS
+                        resultText = sprintf('Name: %s\nConfidence: %.1f%%\nAccess: %s', ...
+                                            userName{1}, probability*100, string(accessGranted));
+                        app.StatusLabel.Text = resultText;
+                        app.StatusLabel.FontColor = [1 1 1]; % white
+                        
+                        app.ResultPanel.Text = sprintf('ACCESS GRANTED - Welcome %s!', userName{1});
+                        app.ResultPanel.FontColor = [0 1 0]; % Green
+
+                        if strcmp(app.SelectControlMethodDropDown.Value, "Manual ")
+                            app.DashboardApp = remotControl();
+                        else 
+                            app.DashboardApp = userDashboard();
+                        end
+
+                        % Show logout button
+                        app.LogoutButton.Visible = 'on';
+                        
+                    else
+                        % Access denied
+                        resultText = sprintf('Name: Unknown \nConfidence: %.1f%%\nAccess: %s', ...
+                                            probability*100, string(accessGranted));
+                        app.StatusLabel.Text = resultText;
+                        app.StatusLabel.FontColor = [1 1 1]; % Red for denied
+                        
+                        app.ResultPanel.Text = 'ACCESS DENIED - Unauthorized User';
+                        app.ResultPanel.FontColor = [1 0 0]; % Red
+                    end
+
+
+                    
+                else
+                    % Handle errors
+                    switch status
+                        case 'no_face'
+                            app.StatusLabel.Text = 'ERROR: No Face Detected - Try Again';
+                            app.ResultPanel.Text = 'ACCESS DENIED';
+                        case 'multiple_faces'
+                            app.StatusLabel.Text = 'ERROR: Multiple Faces Detected';
+                            app.ResultPanel.Text = 'ACCESS DENIED';
+                        otherwise
+                            app.StatusLabel.Text = 'ERROR: Verification Failed - Please Try Again';
+                            app.ResultPanel.Text = 'ACCESS DENIED ';
+                    end
+                    app.StatusLabel.FontColor = [1 0 0]; % Red for errors
+                    app.ResultPanel.FontColor = [1 0 0]; % Red
+                end
+                
+            catch ME
+                % System error handling
+                app.StatusLabel.Text = 'SYSTEM ERROR - Please Try Again';
+                app.StatusLabel.FontColor = [1 1 1]; % Red
+                app.ResultPanel.Text = sprintf('ACCESS DENIED - System Error\n%s', ME.message);
+                app.ResultPanel.FontColor = [1 0 0]; % Red
+            end
+            
+            % Re-enable button
+            app.VerifyFaceButton.Enable = 'on';
+            drawnow;
+        end
+
+        % Button pushed function: LogoutButton
+        function LogoutButtonPushed(app, event)
+            % Close the dashboard if it's open
+            if ~isempty(app.DashboardApp) && isvalid(app.DashboardApp.UIFigure)
+                delete(app.DashboardApp.UIFigure);  % Close the dashboard window
+                app.DashboardApp = [];  % Clear the reference
+            end
+
+            % Reset UI to initial state
+            app.StatusLabel.Text = 'You are logged out';
+            app.StatusLabel.FontColor = [1 1 1]; % White (or your preferred initial color)
+            app.ResultPanel.Text = '';
+            app.ProbabilityGauge.Value = 0;
+            app.LogoutButton.Visible = 'off';
+            % Clear photo panel
+            app.PhotoImage.ImageSource = '';
+            
+            drawnow;
+        end
+    end
+
+    % Component initialization
+    methods (Access = private)
+
+        % Create UIFigure and components
+        function createComponents(app)
+
+            % Create Project and hide until all components are created
+            app.Project = uifigure('Visible', 'off');
+            app.Project.Color = [0 0 0];
+            app.Project.Position = [130 250 658 555];
+            app.Project.Name = 'MATLAB App';
+            app.Project.Theme = 'dark';
+
+            % Create WelcometoNevilleFaceIDLabel
+            app.WelcometoNevilleFaceIDLabel = uilabel(app.Project);
+            app.WelcometoNevilleFaceIDLabel.FontName = 'Times New Roman';
+            app.WelcometoNevilleFaceIDLabel.FontSize = 36;
+            app.WelcometoNevilleFaceIDLabel.Position = [119 489 423 48];
+            app.WelcometoNevilleFaceIDLabel.Text = 'Welcome to Neville Face ID';
+
+            % Create TostartDrivingNevilleyouneedfirsttoLOGINusingyourfacebiometricLabel
+            app.TostartDrivingNevilleyouneedfirsttoLOGINusingyourfacebiometricLabel = uilabel(app.Project);
+            app.TostartDrivingNevilleyouneedfirsttoLOGINusingyourfacebiometricLabel.FontName = 'Calibri';
+            app.TostartDrivingNevilleyouneedfirsttoLOGINusingyourfacebiometricLabel.FontSize = 18;
+            app.TostartDrivingNevilleyouneedfirsttoLOGINusingyourfacebiometricLabel.FontColor = [1 1 1];
+            app.TostartDrivingNevilleyouneedfirsttoLOGINusingyourfacebiometricLabel.Position = [67 458 552 24];
+            app.TostartDrivingNevilleyouneedfirsttoLOGINusingyourfacebiometricLabel.Text = 'To start Driving Neville, you need first to LOG IN using your face biometric';
+
+            % Create ConfidenceLevelGaugeLabel
+            app.ConfidenceLevelGaugeLabel = uilabel(app.Project);
+            app.ConfidenceLevelGaugeLabel.HorizontalAlignment = 'center';
+            app.ConfidenceLevelGaugeLabel.Position = [400 266 98 22];
+            app.ConfidenceLevelGaugeLabel.Text = 'Confidence Level';
+
+            % Create ProbabilityGauge
+            app.ProbabilityGauge = uigauge(app.Project, 'linear');
+            app.ProbabilityGauge.Position = [338 303 221 44];
+
+            % Create VerifyFaceButton
+            app.VerifyFaceButton = uibutton(app.Project, 'push');
+            app.VerifyFaceButton.ButtonPushedFcn = createCallbackFcn(app, @VerifyFaceButtonPushed, true);
+            app.VerifyFaceButton.FontSize = 14;
+            app.VerifyFaceButton.Position = [145 205 111 34];
+            app.VerifyFaceButton.Text = 'Log in';
+
+            % Create LogoutButton
+            app.LogoutButton = uibutton(app.Project, 'push');
+            app.LogoutButton.ButtonPushedFcn = createCallbackFcn(app, @LogoutButtonPushed, true);
+            app.LogoutButton.FontSize = 14;
+            app.LogoutButton.Visible = 'off';
+            app.LogoutButton.Position = [401 205 111 34];
+            app.LogoutButton.Text = 'Log out';
+
+            % Create QuitButton
+            app.QuitButton = uibutton(app.Project, 'push');
+            app.QuitButton.ButtonPushedFcn = createCallbackFcn(app, @quit, true);
+            app.QuitButton.Position = [559 28 45 33];
+            app.QuitButton.Text = 'Quit';
+
+            % Create VerificationResultLabel1
+            app.VerificationResultLabel1 = uilabel(app.Project);
+            app.VerificationResultLabel1.FontSize = 13;
+            app.VerificationResultLabel1.Position = [398 425 109 22];
+            app.VerificationResultLabel1.Text = 'Verification Result';
+
+            % Create StatusLabel
+            app.StatusLabel = uilabel(app.Project);
+            app.StatusLabel.HorizontalAlignment = 'center';
+            app.StatusLabel.WordWrap = 'on';
+            app.StatusLabel.FontSize = 14;
+            app.StatusLabel.FontColor = [1 1 1];
+            app.StatusLabel.Position = [339 371 221 55];
+            app.StatusLabel.Text = '';
+
+            % Create ResultPanel
+            app.ResultPanel = uilabel(app.Project);
+            app.ResultPanel.HorizontalAlignment = 'center';
+            app.ResultPanel.FontSize = 18;
+            app.ResultPanel.FontColor = [1 1 1];
+            app.ResultPanel.Position = [145 139 367 41];
+            app.ResultPanel.Text = '';
+
+            % Create PhotoImage
+            app.PhotoImage = uiimage(app.Project);
+            app.PhotoImage.Position = [98 266 205 181];
+
+            % Create SelectControlMethodLabel
+            app.SelectControlMethodLabel = uilabel(app.Project);
+            app.SelectControlMethodLabel.HorizontalAlignment = 'right';
+            app.SelectControlMethodLabel.FontSize = 14;
+            app.SelectControlMethodLabel.Position = [164 60 147 22];
+            app.SelectControlMethodLabel.Text = 'Select Control Method:';
+
+            % Create SelectControlMethodDropDown
+            app.SelectControlMethodDropDown = uidropdown(app.Project);
+            app.SelectControlMethodDropDown.Items = {'Manual ', 'Automatic'};
+            app.SelectControlMethodDropDown.FontSize = 14;
+            app.SelectControlMethodDropDown.Position = [324 60 90 22];
+            app.SelectControlMethodDropDown.Value = 'Manual ';
+
+            % Create MakesureyouchooseaCONTROLMETHODdownbelowbeforeyouloginLabel
+            app.MakesureyouchooseaCONTROLMETHODdownbelowbeforeyouloginLabel = uilabel(app.Project);
+            app.MakesureyouchooseaCONTROLMETHODdownbelowbeforeyouloginLabel.FontName = 'Calibri';
+            app.MakesureyouchooseaCONTROLMETHODdownbelowbeforeyouloginLabel.FontSize = 18;
+            app.MakesureyouchooseaCONTROLMETHODdownbelowbeforeyouloginLabel.FontColor = [1 1 1];
+            app.MakesureyouchooseaCONTROLMETHODdownbelowbeforeyouloginLabel.Position = [61 104 563 24];
+            app.MakesureyouchooseaCONTROLMETHODdownbelowbeforeyouloginLabel.Text = 'Make sure you choose a CONTROL METHOD down below before you log in ';
+
+            % Show the figure after all components are created
+            app.Project.Visible = 'on';
+        end
+    end
+
+    % App creation and deletion
+    methods (Access = public)
+
+        % Construct app
+        function app = projectCounterance
+
+            % Create UIFigure and components
+            createComponents(app)
+
+            % Register the app with App Designer
+            registerApp(app, app.Project)
+
+            if nargout == 0
+                clear app
+            end
+        end
+
+        % Code that executes before app deletion
+        function delete(app)
+
+            % Delete UIFigure when app is deleted
+            delete(app.Project)
+        end
+    end
+end
