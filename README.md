@@ -4,6 +4,9 @@
 **By:** Mohamed Aldhubai & Ahmed Al-Ghammari  
 **Project Note:** First successful Bluetooth-controlled Arduino Nano 33 IoT robot implementation at VU Amsterdam Robotics Lab.
 
+**Presentation Slides:** https://docs.google.com/presentation/d/1dDMBDKX39nLryqJI6zutHiei3720vYDX/edit?usp=sharing&ouid=113666039187831231188&rtpof=true&sd=true
+**Demo Video:** https://drive.google.com/file/d/1HaK5CxTWEV_oMR6P469w8a5PUVdbgGTA/view?usp=sharing
+
 ---
 
 ## 1. Introduction
